@@ -52,7 +52,7 @@ for company in cotacoes_df["Empresa"].unique():
 for company in companies:
     if cotacoes[company].isnull().values.any():
         cotacoes.pop(company)
-
+        fundamentus.pop(company)
 companies = list(cotacoes.keys())
 
 #[Task 3]: Concatenate 'fundamentus' with 'cotacoes'
@@ -71,10 +71,75 @@ for company in fundamentus:
     table = fundamentus[company].T #transpose
     table.index = pd.to_datetime(table.index, format="%d/%m/%Y")
     cotacao_table = cotacoes[company].set_index("Date")
-    cotacao_table = cotacao_table[["Adj Close"]]
-    
+    cotacao_table = cotacao_table[["Adj Close"]] 
     table = table.merge(cotacao_table, right_index=True, left_index=True)
     table.index.name = company
     fundamentus[company] = table
 
-print(fundamentus["ABEV3"])
+#print(fundamentus["ABEV3"])
+
+#[Task 4]: Remove table with diff columns
+columns = list(fundamentus["ABEV3"].columns)
+
+for company in companies:
+    #set: compare columns content - independent from order 
+    if set(columns) != set(fundamentus[company].columns):
+        fundamentus.pop(company)
+
+#print(len(fundamentus))
+#61
+
+#[Task 5]: fixing columns with the same name
+
+column_text = ";".join(columns)
+column_mod = []
+
+for column in columns:
+    if columns.count(column) == 2 and column not in column_mod:
+        column_text = column_text.replace(";" + column + ";", ";" + column + "_1;", 1)
+        column_mod.append(column)        
+
+columns = column_text.split(";")
+#print(columns)
+
+#Turn list of columns into table
+for company in fundamentus:
+    fundamentus[company].columns = columns
+
+#print(fundamentus)
+
+#[Task 6]: Analyze null values
+'''
+zero_values = {
+    "Ativo Total:" 10,
+    "Passivo Total:" 0,
+}
+'''
+zero_values = dict.fromkeys(columns, 0)
+total_lines = 0
+
+for company in fundamentus:
+    table = fundamentus[company]
+    #shape: line x column
+    total_lines += table.shape[0]
+    for column in columns:
+        quant_zero_values = pd.isnull(table[column]).sum()
+        zero_values[column] += quant_zero_values
+
+#print(zero_values)
+#print(total_lines)
+
+remove_columns = []
+for column in zero_values:
+    if zero_values[column] > 50:
+        remove_columns.append(column)
+        
+#print(remove_columns)
+
+for company in fundamentus:
+    #Remove zero values
+    fundamentus[company] = fundamentus[company].drop(remove_columns, axis=1)
+    #Fill zero values
+    fundamentus[company] = fundamentus[company].ffill()
+
+print(fundamentus["GOLL4"].shape)
